@@ -1,0 +1,47 @@
+# 1. 版本声明：需与Docker引擎版本兼容（3.x系列支持大部分新特性，推荐3.8）
+version: '3.8'
+
+# 2. 服务定义：所有需要启动的容器都在这里配置
+services:
+  # 服务1：Flask Web应用（命名为web，可自定义）
+  web:
+    # 构建镜像：指定Dockerfile所在目录（.表示当前目录）
+    build: .
+    # 容器名称：自定义名称，方便后续通过docker ps查看
+    container_name: flask_web_app
+    # 端口映射：宿主机端口:容器内端口（访问localhost:5000即可进入Flask应用）
+    ports:
+      - "5000:5000"
+    # 环境变量：传递给容器的配置，Flask应用通过os.getenv获取
+    environment:
+      - DB_HOST=mysql  # 关键：直接用MySQL服务名作为主机名（Compose自动解析网络）
+      - DB_USER=root
+      - DB_PASSWORD=123456
+      - DB_NAME=flask_db
+    # 依赖关系：启动web前先启动mysql服务
+    depends_on:
+      - mysql
+    # 数据卷挂载：将宿主机当前目录挂载到容器的/app目录（开发时修改代码无需重新构建镜像）
+    volumes:
+      - ./:/app
+
+  # 服务2：MySQL数据库（命名为mysql，与web服务的DB_HOST对应）
+  mysql:
+    # 直接使用官方镜像：无需自己构建，指定版本为8.0
+    image: mysql:8.0
+    # 容器名称
+    container_name: flask_mysql_db
+    # 环境变量：MySQL初始化配置（必须设置root密码，否则容器无法启动）
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456  # root用户密码，与web服务的DB_PASSWORD一致
+      - MYSQL_DATABASE=flask_db     # 自动创建名为flask_db的数据库，无需手动建库
+    # 数据卷：持久化MySQL数据（容器删除后数据不丢失，命名卷mysql_data需在顶层声明）
+    volumes:
+      - mysql_data:/var/lib/mysql  # /var/lib/mysql是MySQL默认的数据存储路径
+    # 暴露端口：仅允许内部服务访问（不映射到宿主机，避免外部直接访问数据库）
+    expose:
+      - "3306"
+
+# 3. 数据卷声明：顶层volumes节点定义所有命名卷（供服务引用）
+volumes:
+  mysql_data:  # 自动创建命名卷，数据存储在Docker的默认数据目录（/var/lib/docker/volumes/）
